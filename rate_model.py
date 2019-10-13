@@ -20,7 +20,7 @@ delta_t_default = 0.001
 
 
 
-def dn(n, I = I_initial, tau_s = tau_s_default, e = E, V = volume, g = gain, n_0 = n_0_const, p = P):
+def dn(n, p = P, I = I_initial, tau_s = tau_s_default, e = E, V = volume, g = gain, n_0 = n_0_const):
     return -(n/tau_s) + I/(e*V) - g*(n - n_0)*p
 
 
@@ -31,7 +31,7 @@ def n_steady_state(p = P, tau_s = tau_s_default, I = I_initial, e = E, V = volum
 
     while True:
 
-        n_t1 = n_t + dn(n_t)*delta_t
+        n_t1 = n_t + dn(n_t, p)*delta_t
 
         t += delta_t
 
@@ -40,6 +40,11 @@ def n_steady_state(p = P, tau_s = tau_s_default, I = I_initial, e = E, V = volum
 
         n_t = n_t1
 
-p_ar = np.logspace(0, 100, 10)
+p_ar = np.logspace(-5, 3, 100)
+n_out = []
 for p in p_ar:
-    print(n_steady_state(p))
+    n_out += [n_steady_state(p)]
+
+plt.loglog(p_ar, n_out)
+
+plt.show()
