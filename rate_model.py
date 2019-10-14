@@ -43,8 +43,11 @@ def n_steady_state(p = P, tau_s = tau_s_default, I = I_initial, e = E, V = volum
 p_ar = np.logspace(-5, 3, 100)
 n_out = []
 for p in p_ar:
-    n_out += [n_steady_state(p)]
+    n_out += [gain*(n_steady_state(p) - n_0_const)]
 
-plt.loglog(p_ar, n_out)
+plt.semilogy(np.log10(p_ar), n_out)
+plt.xlabel("Log(P)")
+plt.ylabel("n")
+plt.title("Carrier Conc Vs P")
 
 plt.show()
