@@ -2,16 +2,17 @@ import rate_model
 import numpy as np
 import matplotlib.pyplot as plt
 
-n_initial_array = np.logspace(18, 22, 4)
+I_array = np.linspace(0.001, 1, 5)
 
-for n_initial in n_initial_array:
+for I_initial in I_array:
     e = rate_model.E
-    I = rate_model.I_initial
+    I = I_initial
+    p_0 = rate_model.P
 
     t = 0
 
     n_out = []
-    n_t = n_initial
+    n_t = rate_model.n_0_const
 
     n_out += [n_t]
 
@@ -21,10 +22,8 @@ for n_initial in n_initial_array:
     delta_t = rate_model.delta_t_default
 
     while t < rate_model.t_stop:
-        if t > rate_model.t_stop/2:
-            I = rate_model.I_initial*2
 
-        n_t1 = n_t + rate_model.dn(n_t)*delta_t
+        n_t1 = n_t + rate_model.dn(n_t, p_0 , I)*delta_t
         print(t, n_t)
 
         t += delta_t
@@ -34,6 +33,7 @@ for n_initial in n_initial_array:
 
         n_t = n_t1
 
-    plt.semilogy(t_out, n_out)
+    plt.semilogy(t_out, n_out, label = I)
 
+plt.legend()
 plt.show()
