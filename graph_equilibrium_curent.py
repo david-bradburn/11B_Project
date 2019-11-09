@@ -19,7 +19,7 @@ for I_initial in I_array:
     t_out = []
     t_out += [t]
 
-    delta_t = rate_model.t_stop/10
+    delta_t = 1*10**(-10)
 
     while t < rate_model.t_stop:
 

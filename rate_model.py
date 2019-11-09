@@ -20,8 +20,12 @@ volume = Length * Width * Depth # Volume
 gain_coefficient = 3 * 10 ** (-20) #m^3/s #gain contant
 n_0_const = 1.1 * 10**(24)  #m^-3#transparent carrier density
 P = 1#1*10**10 #photon conc
-P_on = 1*10**27 # note variation in pk-pk power in
-P_off = 1* 10**26
+P_on = 0.5*10**28 # note variation in pk-pk power in
+P_off = 0.5* 10**27
+
+#bottom 0.5*10**26 - 0.5*10**27
+#middle 0.5*10**27 - 0.5*10**28
+#top 0.5*10**28 - 0.5*10**29
 
 
 
@@ -57,7 +61,7 @@ I = np.linspace(0.001, 0.01, 5)
 
 def G_P_I():
     for i in I:
-        p_ar = np.logspace(24, 29.5, 100)
+        p_ar = np.logspace(24, 30, 100)
         g_out = []
         for p_0 in p_ar:
             g_out += [np.exp(gain_coefficient * (n_steady_state(p_0, i) - n_0_const) * Length)]
@@ -108,6 +112,26 @@ def generate_random_full_sequence_without_risetime(length, f, step_time, p_on = 
 #
 
 
+def change_of_bit(bit, sequence):
+
+    if sequence[bit - 1] == sequence[bit]:
+        return 0
+    elif sequence[bit - 1] < sequence[bit]:
+        return 1
+    elif sequence[bit - 1] > sequence[bit]:
+        return -1
+
+
+def sequence_risetime_slow(ar, t, op, step_time, t_0, f):
+    for i in ar:
+        op += [i]
+        t += step_time
+
+    return op, t, t_0
+
+
+#                   if t - t_0 >= 1/f:
+
 def generate_random_full_sequence_with_risetime(length, f, step_time, rise_time, fall_time, p_on = P_on, p_off = P_off):
     assert type(length) == int
 
@@ -117,7 +141,9 @@ def generate_random_full_sequence_with_risetime(length, f, step_time, rise_time,
     bit = 0
     t = 0
     t_0 = 0
+    bit_change = 0
     op = []
+    bit_change_index = [0]
 
     max_to_min = np.linspace(p_on, p_off, int(fall_time/step_time))
     min_to_max = np.linspace(p_off, p_on, int(rise_time/step_time))
@@ -127,49 +153,61 @@ def generate_random_full_sequence_with_risetime(length, f, step_time, rise_time,
         t += step_time
 
         if t - t_0 >= 1/f:
-
+            bit_change_index += [len(op) - 1]
             bit += 1
             t_0 = t
             if bit > len(sequence):
                 raise ValueError
 
-            if sequence[bit - 1] == sequence[bit]:
+            bit_change = change_of_bit(bit, sequence)
+            if bit_change == 0:
                 pass
-            elif sequence[bit - 1] < sequence[bit]:
-                #print(op, min_to_max)
-                for i in min_to_max:
-                    op += [i]
-                t += len(min_to_max) * step_time
-            elif sequence[bit - 1] > sequence[bit]:
-                for i in max_to_min:
-                    op += [i]
-                t += len(max_to_min) * step_time
+            elif bit_change == 1:
+                op, t, t_0 = sequence_risetime_slow(min_to_max, t, op, step_time, t_0, f)
+            elif bit_change == -1:
+                op, t, t_0 = sequence_risetime_slow(max_to_min, t, op, step_time, t_0, f)
+            else:
+                raise Exception
 
-    return op
+
+
+
     #print(op)
-    #plt.plot(op)
-    #plt.show()
+    # plt.plot(op)
+    # plt.show()
+
+    return op, bit_change_index
 
 #
-# op1 = generate_random_full_sequence_with_risetime(10, 0.1, 0.01, 1, 1)
+#op1 = generate_random_full_sequence_with_risetime(10, 0.1, 0.01, 1, 1)
 #
 # plt.plot(op1)
 # plt.plot(op2)
 # plt.show()
 
 
-def P_out_for_sequence():
-    sequence = generate_random_sequence(100, P_on, P_off)
-    f = 10 * 10 ** 6     # B/s min is roughly 1 MHz before sim breaks down
-    rise_time = 1/(20*f)
+
+def p_out_for_sequence():
+
+    f = 100 * 10 ** 6
+    #rise_time = 1/(20*f)
 
     time = [0]
 
-    t_step = min(1/(1000*f), 1*10**(-10))
+    t_step = min(1/(100*f), 1*10**(-10))
     bit = 0
+
+    rise_time = 0.1*10**(-11)
+    print(rise_time)
+    fall_time = rise_time
+    assert rise_time < 1/f
+    sequence, bit_index = generate_random_full_sequence_with_risetime(500, f, t_step, rise_time, fall_time, P_on, P_off)
+    print(len(sequence))
+    #sequence = generate_random_full_sequence_without_risetime(100, f, t_step, P_on, P_off)
 
     n_t0 = n_steady_state(sequence[0])
     #print(n_t0)
+
     n_o = [n_t0]
     gain_ar = [gain_coefficient * (n_t0 - n_0_const)]
     P_o_ar = [gain_ar[-1] * sequence[0]]
@@ -183,8 +221,6 @@ def P_out_for_sequence():
 
         gain_ar += [np.exp(gain_coefficient * (n_t1 - n_0_const)*Length)]
 
-        # if time[-1] == 0:
-        #     print(gain_coefficient * (n_t1 - n_0_const)*Length)
         n_o += [n_t1]
         n_t0 = n_t1
 
@@ -192,11 +228,11 @@ def P_out_for_sequence():
 
         time += [time[-1] + t_step]
 
-        if time[-1] - time_0 >= 1/f:
-            bit += 1
-            time_0 = time[-1]
-            if bit > len(sequence):
-                raise ValueError
+        bit += 1
+
+        if bit >= len(sequence):
+            break
+            raise ValueError
 
 
     #print(gain_ar)
@@ -208,10 +244,38 @@ def P_out_for_sequence():
     plt.plot(time[1:], gain_ar[1:])
     plt.title('Gain against time')
     plt.show()
+    #print(P_o_ar.shape())
     plt.plot(time[1:], P_o_ar[1:])
     plt.title('Power Out against time')
     plt.show()
+    return P_o_ar[1:], f, t_step, bit_index
 
-#P_out_for_sequence()
 
+P_out, f, t_step, bit_index = p_out_for_sequence()
+
+def bit_index_removal(ar):
+    op = []
+    for i in range(len(ar)):
+        if i%3 == 0:
+            op += [bit_index[i]]
+
+    return op
+
+bit_index = bit_index_removal(bit_index)
+
+
+def eye_diagram_plot(P_out, f, t_step, bit_index):
+    #print(len(P_out), int(3/(t_step*f)), 1/f, t_step)
+    for i in range(len(bit_index)-1):
+        plt.plot(P_out[bit_index[i]:bit_index[i+1]])
+        # for i in range(int(len(P_out)/100)):
+        #     print(100*i/len(P_out))
+        #     try:
+        #         plt.plot(P_out[int(i*(3/t_step*(f))):int((i+1)*(3/t_step*(f)))])
+        #     except:
+        #         plt.show()
+    plt.show()
 #Gonna have to do a redesign of the system so I can feed the out of one into the other
+
+
+eye_diagram_plot(P_out, f, t_step, bit_index)
