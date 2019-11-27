@@ -303,6 +303,7 @@ def loss_analysis():
         P_out, bit_index = p_out_for_sequence(0, [], i)
         eye_diagram_plot(P_out, bit_index, 0)
 
+
 def pass_through_multiple():
     P_out, bit_index = p_out_for_sequence(0, [], 0)
     eye_diagram_plot(P_out, bit_index, 0)
