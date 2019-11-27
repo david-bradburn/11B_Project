@@ -33,6 +33,8 @@ P_off = 0.5* 10**27
 t_stop = 0.0001
 delta_t_default = 1*10**(-11)
 
+
+
 ########################################################################################################################
 #    Assuming that the laser is InP then Eg = 1.35 eV -> wavelength = 915nm
 
@@ -188,10 +190,10 @@ def generate_random_full_sequence_with_risetime(length, f, step_time, rise_time,
 
 
 
-def p_out_for_sequence(given_sequence, seq):
+def p_out_for_sequence(given_sequence, seq, loss):
 
 
-    f = 10 * 10 ** 6
+    f = 1000 * 10 ** 6
 
     #rise_time = 1/(20*f)
 
@@ -206,7 +208,7 @@ def p_out_for_sequence(given_sequence, seq):
     fall_time = rise_time
     assert rise_time < 1/f
 
-    symbol_no = 100
+    symbol_no = 500
     assert type(symbol_no) == int
 
     sequence, bit_index = generate_random_full_sequence_with_risetime(symbol_no, f, t_step, rise_time, fall_time, P_on, P_off)
@@ -214,6 +216,13 @@ def p_out_for_sequence(given_sequence, seq):
 
     #sequence = generate_random_full_sequence_without_risetime(100, f, t_step, P_on, P_off)
 
+    if given_sequence == 1:
+        sequence = seq
+
+    # reducedseq = [x * ppp * volume for x in sequence]
+    # plt.plot(reducedseq)
+    #
+    # plt.show()
     n_t0 = n_steady_state(sequence[0])
     #print(n_t0)
 
@@ -221,7 +230,7 @@ def p_out_for_sequence(given_sequence, seq):
     gain_ar = [gain_coefficient * (n_t0 - n_0_const)]
     P_o_ar = [gain_ar[-1] * sequence[0]]
 
-    loss = 0 #gain loss coefficient
+    #gain loss coefficient
 
     while time[-1] < (1/f * len(sequence)):
 
@@ -229,7 +238,7 @@ def p_out_for_sequence(given_sequence, seq):
 
         #print(time[-1], n_t0)
 
-        gain_ar += [np.exp((gain_coefficient * (n_t1 - n_0_const) -loss)*Length)]
+        gain_ar += [np.exp((gain_coefficient * (n_t1 - n_0_const) - loss)*Length)]
 
         n_o += [n_t1]
         n_t0 = n_t1
@@ -268,31 +277,41 @@ def bit_index_removal(ar):
     op = []
     for i in range(len(ar)):
         if i%3 == 0:
-            op += [bit_index[i]]
+            op += [ar[i]]
 
     return op
 
 
+def eye_diagram_plot(P_out, bit_index, passno):
 
-
-def eye_diagram_plot(P_out, bit_index):
     bit_index = bit_index_removal(bit_index)
-    #print(len(P_out), int(3/(t_step*f)), 1/f, t_step)
+
+    plt.figure()
     for i in range(len(bit_index)-1):
-        plt.plot(P_out[bit_index[i]:bit_index[i+1]])
-    plt.show()
-
-
-P_out, bit_index = p_out_for_sequence(0, [])
-eye_diagram_plot(P_out, bit_index)
-
-
-for i in range(2):
-    P_out, bit_index = p_out_for_sequence(1, P_out)
-    eye_diagram_plot(P_out, bit_index)
+        plt.plot([x *ppp *volume for x in P_out[bit_index[i]:bit_index[i+1]]])
+        plt.title("Eye Diagram after {} passes".format(passno + 1))
+        plt.ylim(0, 2*10**-7)
 
 
 
 
-#eye_diagram_plot(P_out, f, t_step, bit_index)
+def loss_analysis():
+    P_out, bit_index = p_out_for_sequence(0, [], 0)
+    eye_diagram_plot(P_out, bit_index, 0)
+    #xmin, xmax, ymin, ymax = axis()
+    for i in np.logspace(2, 5.5, 4):
+        P_out, bit_index = p_out_for_sequence(0, [], i)
+        eye_diagram_plot(P_out, bit_index, 0)
 
+def pass_through_multiple():
+    P_out, bit_index = p_out_for_sequence(0, [], 0)
+    eye_diagram_plot(P_out, bit_index, 0)
+
+    for i in range(5):
+        P_out, bit_index = p_out_for_sequence(1, P_out, 0)
+        eye_diagram_plot(P_out, bit_index, i + 1)
+
+#pass_through_multiple()
+loss_analysis()
+
+plt.show()
