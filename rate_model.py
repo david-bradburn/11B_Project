@@ -1,39 +1,50 @@
 import numpy as np
+import scipy.constants as sc
 import matplotlib.pyplot as plt
 
-#n = 1 #carrier_concentration
+                                    #n = 1 #carrier_concentration
 
-tau_s_default = 3*10**(-9)# 3*10**(-9) #ns #spontaneous_emmision_life_time
+tau_s_default = 3*10**(-9)          # 3*10**(-9) #ns #spontaneous_emmision_life_time
 
-dn = 0 #rate_of_change_of_carrier_concentration
+dn = 0                              #rate_of_change_of_carrier_concentration
 
-I_initial = 0.005# 50*10**(-3) #current Amps
-E = 1.9*10**(-19) #e constant
+I_initial = 0.005                   # 50*10**(-3) #current Amps
+E = 1.9*10**(-19)                   #e constant
 
-Length = 10 * 10**(-6) #m
-Width = 3 * 10**(-6) #m
-Depth = 0.2 * 10**(-6) #m
+Length = 10 * 10**(-6)              #m
+Width = 3 * 10**(-6)                #m
+Depth = 0.2 * 10**(-6)              #m
 
-volume = Length * Width * Depth # Volume
-#print(volume)
+volume = Length * Width * Depth     # Volume
+                                    #print(volume)
 
-gain_coefficient = 3 * 10 ** (-20) #m^3/s #gain contant
-n_0_const = 1.1 * 10**(24)  #m^-3#transparent carrier density
-P = 1#1*10**10 #photon conc
-P_on = 0.5*10**28 # note variation in pk-pk power in
+gain_coefficient = 3 * 10 ** (-20)  #m^3/s #gain contant
+n_0_const = 1.1 * 10**(24)          #m^-3#transparent carrier density
+P = 1                               #1*10**10 #photon conc
+P_on = 0.5*10**28                   # note variation in pk-pk power in
 P_off = 0.5* 10**27
 
-#bottom 0.5*10**26 - 0.5*10**27
-#middle 0.5*10**27 - 0.5*10**28
-#top 0.5*10**28 - 0.5*10**29
-
-
-
+                                    #bottom 0.5*10**26 - 0.5*10**27
+                                    #middle 0.5*10**27 - 0.5*10**28
+                                    #top 0.5*10**28 - 0.5*10**29
 
 t_stop = 0.0001
 delta_t_default = 1*10**(-11)
 
+########################################################################################################################
+#    Assuming that the laser is InP then Eg = 1.35 eV -> wavelength = 915nm
+
+h = sc.h
+c = sc.c
+wavelength = 915*10**(-9)
+
+ppp = h*c/wavelength                #power per photon
+
+
+
+
 #print(delta_t_default)
+
 
 def dn(n, p = P, I = I_initial, tau_s = tau_s_default, e = E, V = volume, g = gain_coefficient, n_0 = n_0_const):
     return -(n/tau_s) + I/(e*V) - g*(n - n_0)*p
@@ -47,8 +58,6 @@ def n_steady_state(p = P, I = I_initial, tau_s = tau_s_default, e = E, V = volum
     while True:
 
         n_t1 = n_t + dn(n_t, p, I)*delta_t
-
-        #t += delta_t
 
         if abs((n_t1 - n_t)/ n_t1) < 0.0000001:
             return n_t1
@@ -107,9 +116,6 @@ def generate_random_full_sequence_without_risetime(length, f, step_time, p_on = 
     # plt.plot(op)
     # plt.show()
     return op
-#
-# op2 = generate_random_full_sequence_without_risetime(10, 0.1, 0.01)
-#
 
 
 def change_of_bit(bit, sequence):
@@ -129,8 +135,6 @@ def sequence_risetime_slow(ar, t, op, step_time, t_0, f):
 
     return op, t, t_0
 
-
-#                   if t - t_0 >= 1/f:
 
 def generate_random_full_sequence_with_risetime(length, f, step_time, rise_time, fall_time, p_on = P_on, p_off = P_off):
     assert type(length) == int
@@ -178,18 +182,12 @@ def generate_random_full_sequence_with_risetime(length, f, step_time, rise_time,
 
     return op, bit_change_index
 
-#
-#op1 = generate_random_full_sequence_with_risetime(10, 0.1, 0.01, 1, 1)
-#
-# plt.plot(op1)
-# plt.plot(op2)
-# plt.show()
 
 
 
 def p_out_for_sequence():
 
-    f = 100 * 10 ** 6
+    f = 10 * 10 ** 6
     #rise_time = 1/(20*f)
 
     time = [0]
@@ -197,11 +195,15 @@ def p_out_for_sequence():
     t_step = min(1/(100*f), 1*10**(-10))
     bit = 0
 
-    rise_time = 0.1*10**(-11)
+    rise_time = 1/(10*f)
     print(rise_time)
     fall_time = rise_time
     assert rise_time < 1/f
-    sequence, bit_index = generate_random_full_sequence_with_risetime(500, f, t_step, rise_time, fall_time, P_on, P_off)
+
+    symbol_no = 100
+    assert type(symbol_no) == int
+
+    sequence, bit_index = generate_random_full_sequence_with_risetime(symbol_no, f, t_step, rise_time, fall_time, P_on, P_off)
     print(len(sequence))
     #sequence = generate_random_full_sequence_without_risetime(100, f, t_step, P_on, P_off)
 
@@ -212,14 +214,15 @@ def p_out_for_sequence():
     gain_ar = [gain_coefficient * (n_t0 - n_0_const)]
     P_o_ar = [gain_ar[-1] * sequence[0]]
 
-    time_0 = time[0]
+    loss = 0 #gain loss coefficient
+
     while time[-1] < (1/f * len(sequence)):
 
         n_t1 = n_t0 + dn(n_t0, sequence[bit]) * t_step
 
         #print(time[-1], n_t0)
 
-        gain_ar += [np.exp(gain_coefficient * (n_t1 - n_0_const)*Length)]
+        gain_ar += [np.exp((gain_coefficient * (n_t1 - n_0_const) -loss)*Length)]
 
         n_o += [n_t1]
         n_t0 = n_t1
@@ -268,14 +271,9 @@ def eye_diagram_plot(P_out, f, t_step, bit_index):
     #print(len(P_out), int(3/(t_step*f)), 1/f, t_step)
     for i in range(len(bit_index)-1):
         plt.plot(P_out[bit_index[i]:bit_index[i+1]])
-        # for i in range(int(len(P_out)/100)):
-        #     print(100*i/len(P_out))
-        #     try:
-        #         plt.plot(P_out[int(i*(3/t_step*(f))):int((i+1)*(3/t_step*(f)))])
-        #     except:
-        #         plt.show()
     plt.show()
-#Gonna have to do a redesign of the system so I can feed the out of one into the other
 
 
-eye_diagram_plot(P_out, f, t_step, bit_index)
+
+
+#eye_diagram_plot(P_out, f, t_step, bit_index)
