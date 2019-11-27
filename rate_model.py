@@ -20,8 +20,8 @@ volume = Length * Width * Depth # Volume
 gain_coefficient = 3 * 10 ** (-20) #m^3/s #gain contant
 n_0_const = 1.1 * 10**(24)  #m^-3#transparent carrier density
 P = 1#1*10**10 #photon conc
-P_on = 0.5*10**28 # note variation in pk-pk power in
-P_off = 0.5* 10**27
+P_on = 0.5*10**29 # note variation in pk-pk power in
+P_off = 0.5* 10**28
 
 #bottom 0.5*10**26 - 0.5*10**27
 #middle 0.5*10**27 - 0.5*10**28
@@ -179,17 +179,19 @@ def generate_random_full_sequence_with_risetime(length, f, step_time, rise_time,
     return op, bit_change_index
 
 #
-#op1 = generate_random_full_sequence_with_risetime(10, 0.1, 0.01, 1, 1)
+op1, basdasd = generate_random_full_sequence_with_risetime(10, 0.3, 0.01, 1, 1)
 #
-# plt.plot(op1)
-# plt.plot(op2)
-# plt.show()
+plt.plot(op1)
+plt.xlabel("Time")
+plt.ylabel("Power")
+#plt.plot(op2)
+plt.show()
 
 
 
-def p_out_for_sequence():
+def p_out_for_sequence(given_sequence, seq):
 
-    f = 100 * 10 ** 6
+    f = 10000 * 10 ** 6
     #rise_time = 1/(20*f)
 
     time = [0]
@@ -197,12 +199,17 @@ def p_out_for_sequence():
     t_step = min(1/(100*f), 1*10**(-10))
     bit = 0
 
-    rise_time = 0.1*10**(-11)
-    print(rise_time)
+    rise_time = 1/(10*f)
+    #print(rise_time)
     fall_time = rise_time
     assert rise_time < 1/f
+
     sequence, bit_index = generate_random_full_sequence_with_risetime(500, f, t_step, rise_time, fall_time, P_on, P_off)
-    print(len(sequence))
+
+    if given_sequence == 1:
+        sequence = seq
+
+    #print(len(sequence))
     #sequence = generate_random_full_sequence_without_risetime(100, f, t_step, P_on, P_off)
 
     n_t0 = n_steady_state(sequence[0])
@@ -238,20 +245,21 @@ def p_out_for_sequence():
     #print(gain_ar)
     #print(time)
     #print(n_o)
-    plt.plot(time[1:], n_o[1:])
-    plt.title('Carrier Density Against Time')
-    plt.show()
-    plt.plot(time[1:], gain_ar[1:])
-    plt.title('Gain against time')
-    plt.show()
-    #print(P_o_ar.shape())
-    plt.plot(time[1:], P_o_ar[1:])
-    plt.title('Power Out against time')
-    plt.show()
-    return P_o_ar[1:], f, t_step, bit_index
+    # plt.plot(time[1:], n_o[1:])
+    # plt.title('Carrier Density Against Time')
+    # plt.show()
+    # plt.plot(time[1:], gain_ar[1:])
+    # plt.title('Gain against time')
+    # plt.show()
+    # #print(P_o_ar.shape())
+    # plt.plot(time[1:], P_o_ar[1:])
+    # plt.title('Power Out against time')
+    # plt.show()
+    return P_o_ar[1:], bit_index
 
 
-P_out, f, t_step, bit_index = p_out_for_sequence()
+#P_out, f, t_step, bit_index = p_out_for_sequence(0, [])
+
 
 def bit_index_removal(ar):
     op = []
@@ -261,10 +269,11 @@ def bit_index_removal(ar):
 
     return op
 
-bit_index = bit_index_removal(bit_index)
 
 
-def eye_diagram_plot(P_out, f, t_step, bit_index):
+
+def eye_diagram_plot(P_out, bit_index):
+    bit_index = bit_index_removal(bit_index)
     #print(len(P_out), int(3/(t_step*f)), 1/f, t_step)
     for i in range(len(bit_index)-1):
         plt.plot(P_out[bit_index[i]:bit_index[i+1]])
@@ -274,8 +283,15 @@ def eye_diagram_plot(P_out, f, t_step, bit_index):
         #         plt.plot(P_out[int(i*(3/t_step*(f))):int((i+1)*(3/t_step*(f)))])
         #     except:
         #         plt.show()
-    plt.show()
+    #plt.show()
 #Gonna have to do a redesign of the system so I can feed the out of one into the other
 
+P_out, bit_index = p_out_for_sequence(0, [])
+eye_diagram_plot(P_out, bit_index)
 
-eye_diagram_plot(P_out, f, t_step, bit_index)
+
+for i in range(2):
+    P_out, bit_index = p_out_for_sequence(1, P_out)
+    eye_diagram_plot(P_out, bit_index)
+
+plt.show()
