@@ -50,8 +50,11 @@ ppp = h*c/wavelength                #power per photon
 #print(delta_t_default)
 
 
-def dn(n, p = P, I = I_initial, tau_s = tau_s_default, e = E, V = volume, g = gain_coefficient, n_0 = n_0_const):
-    return -(n/tau_s) + I/(e*V) - g*(n - n_0)*p
+def dn(n, p = P, noise = 0, I = I_initial, tau_s = tau_s_default, e = E, V = volume, g = gain_coefficient, n_0 = n_0_const):
+    if noise == 0:
+        return -(n / tau_s) + I / (e * V) - g * (n - n_0) * p
+    else:
+        return -(n/tau_s) + I/(e*V) - g*(n - n_0)*p + (-(n/tau_s) + I/(e*V) - g*(n - n_0)*p)/20* (np.random.random() - 0.5)
 
 
 def n_steady_state(p = P, I = I_initial, tau_s = tau_s_default, e = E, V = volume, g = gain_coefficient, n_0 = n_0_const, delta_t = delta_t_default): #Find the steady state of n while everything else is constant
@@ -61,7 +64,7 @@ def n_steady_state(p = P, I = I_initial, tau_s = tau_s_default, e = E, V = volum
 
     while True:
 
-        n_t1 = n_t + dn(n_t, p, I)*delta_t
+        n_t1 = n_t + dn(n_t, p, 0, I)*delta_t
 
         if abs((n_t1 - n_t)/ n_t1) < 0.0000001:
             return n_t1
@@ -132,15 +135,24 @@ def change_of_bit(bit, sequence):
         return -1
 
 
+def power_rand():
+    return ((P_on - P_off)/25 * (np.random.random() - 0.5))
+
+
 def sequence_risetime_slow(ar, t, op, step_time, t_0, f):
     for i in ar:
-        op += [i]
+        op += [i + power_rand()]
         t += step_time
 
     return op, t, t_0
 
+def add_input_noise(power):
+    for i in range(len(power)):
+        power[i] += power_rand()
+    return power
 
-def generate_random_full_sequence_with_risetime(length, f, step_time, rise_time, fall_time, p_on = P_on, p_off = P_off):
+
+def generate_random_full_sequence_with_risetime(length, f, step_time, rise_time, fall_time, p_on = P_on, p_off = P_off, add_noise = 0):
     assert type(length) == int
 
     total_time = (length * 1/f)
@@ -149,11 +161,12 @@ def generate_random_full_sequence_with_risetime(length, f, step_time, rise_time,
     bit = 0
     t = 0
     t_0 = 0
-    bit_change = 0
+
     op = []
     bit_change_index = [0]
 
     max_to_min = np.linspace(p_on, p_off, int(fall_time/step_time))
+    #print(len(max_to_min))
     min_to_max = np.linspace(p_off, p_on, int(rise_time/step_time))
 
     while t < total_time:
@@ -177,8 +190,8 @@ def generate_random_full_sequence_with_risetime(length, f, step_time, rise_time,
             else:
                 raise Exception
 
-
-
+    if add_noise == 1:
+        op = add_input_noise(op)
 
     #print(op)
     # plt.plot(op)
@@ -187,15 +200,12 @@ def generate_random_full_sequence_with_risetime(length, f, step_time, rise_time,
     return op, bit_change_index
 
 
+# pw, bci = generate_random_full_sequence_with_risetime(500, 1000 * 10 ** (6), 1/(1000* 10 ** 6 * 100), 1/(1000* 10 ** 6 * 10), 1/(1000* 10 ** 6 * 10), P_on, P_off , 1)
+# plt.plot(pw)
 
+def p_out_for_sequence(given_sequence, seq, loss, noise_ip, noise_sys):
 
-
-def p_out_for_sequence(given_sequence, seq, loss):
-
-
-    f = 1000 * 10 ** 6
-
-    #rise_time = 1/(20*f)
+    f = 10000 * 10 ** 6
 
     time = [0]
 
@@ -204,39 +214,29 @@ def p_out_for_sequence(given_sequence, seq, loss):
 
     rise_time = 1/(10*f)
 
-    #print(rise_time)
     fall_time = rise_time
     assert rise_time < 1/f
 
     symbol_no = 1000
     assert type(symbol_no) == int
 
-    sequence, bit_index = generate_random_full_sequence_with_risetime(symbol_no, f, t_step, rise_time, fall_time, P_on, P_off)
-    #print(len(sequence))
+    sequence, bit_index = generate_random_full_sequence_with_risetime(symbol_no, f, t_step, rise_time, fall_time, P_on, P_off, noise_ip)
 
-    #sequence = generate_random_full_sequence_without_risetime(100, f, t_step, P_on, P_off)
+    #   sequence = generate_random_full_sequence_without_risetime(100, f, t_step, P_on, P_off)
 
     if given_sequence == 1:
         sequence = seq
 
-    # reducedseq = [x * ppp * volume for x in sequence]
-    # plt.plot(reducedseq)
-    #
-    # plt.show()
     n_t0 = n_steady_state(sequence[0])
-    #print(n_t0)
+    #   print(n_t0)
 
     n_o = [n_t0]
     gain_ar = [gain_coefficient * (n_t0 - n_0_const)]
     P_o_ar = [gain_ar[-1] * sequence[0]]
 
-    #gain loss coefficient
-
     while time[-1] < (1/f * len(sequence)):
 
-        n_t1 = n_t0 + dn(n_t0, sequence[bit]) * t_step
-
-        #print(time[-1], n_t0)
+        n_t1 = n_t0 + dn(n_t0, sequence[bit], noise_sys) * t_step
 
         gain_ar += [np.exp((gain_coefficient * (n_t1 - n_0_const) - loss)*Length)]
 
@@ -270,12 +270,10 @@ def p_out_for_sequence(given_sequence, seq, loss):
     return P_o_ar[1:], bit_index
 
 
-P_out, bit_index = p_out_for_sequence(0, [], 0)
+#P_out, bit_index = p_out_for_sequence(0, [], 0, 0)
 
 
 def power_chop(power, bit_index):
-    #like cut off how many samples?
-    #print(int(bit_index[0]), bit_index[int(len(bit_index)/100)])
 
     print(len(bit_index))
     for m in range(int(len(bit_index)) - 2):
@@ -315,38 +313,42 @@ def eye_diagram_plot(P_out, bit_index, passno, loss, type):
     bit_index = bit_index_removal(bit_index)
 
     plt.figure()
-    for i in range(len(bit_index)-1):
+    for i in range(1, len(bit_index)-1):
         plt.plot([x * ppp * volume for x in P_out[bit_index[i]:bit_index[i+1]]])
         plt.title("Eye Diagram after {} passes with a loss of {}".format(passno + 1, int(loss)))
         if type == 1:
             plt.ylim(0, 2 * 10 ** (-7))
         elif type == 0:
-            plt.ylim(0, 5 * 10 ** (-7))
+            if loss > 10000:
+                plt.ylim(0, 1.4 * 10 ** (-7))
+            else:
+                plt.ylim(0, 2 * 10 ** (-7))
+                pass
 
 
 def loss_analysis(type):
-    P_out, bit_index = p_out_for_sequence(0, [], 0)
+    P_out, bit_index = p_out_for_sequence(0, [], 0, 0, 0)
     eye_diagram_plot(P_out, bit_index, 0, 0, type)
     #xmin, xmax, ymin, ymax = axis()
     for i in np.logspace(4, 5.5, 4):
-        P_out, bit_index = p_out_for_sequence(0, [], i)
+        P_out, bit_index = p_out_for_sequence(0, [], i, 0, 0)
         eye_diagram_plot(P_out, bit_index, 0, i, type)
 
 
 def pass_through_multiple(type, loss):
-    total = 5
+    total = 0
     print(1/(total + 1))
-    P_out, bit_index = p_out_for_sequence(0, [], loss)
+    P_out, bit_index = p_out_for_sequence(0, [], loss, 0, 1)
     eye_diagram_plot(P_out, bit_index, 0, loss, type)
 
     for i in range(total):
         print((i + 2)/(total + 1))
 
-        P_out, bit_index = p_out_for_sequence(1, P_out, loss)
+        P_out, bit_index = p_out_for_sequence(1, P_out, loss, 0, 1)
         eye_diagram_plot(P_out, bit_index, i + 1, loss, type)
 
 loss = 0
-pass_through_multiple(0, loss)        #0 pass multi
-#loss_analysis(1)                #1 loss analysis
+pass_through_multiple(0, loss)         #0 pass multi
+#loss_analysis(1)                        #1 loss analysis
 
 plt.show()
