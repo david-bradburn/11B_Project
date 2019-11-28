@@ -204,15 +204,15 @@ def p_out_for_sequence(given_sequence, seq, loss):
 
     rise_time = 1/(10*f)
 
-    print(rise_time)
+    #print(rise_time)
     fall_time = rise_time
     assert rise_time < 1/f
 
-    symbol_no = 500
+    symbol_no = 1000
     assert type(symbol_no) == int
 
     sequence, bit_index = generate_random_full_sequence_with_risetime(symbol_no, f, t_step, rise_time, fall_time, P_on, P_off)
-    print(len(sequence))
+    #print(len(sequence))
 
     #sequence = generate_random_full_sequence_without_risetime(100, f, t_step, P_on, P_off)
 
@@ -263,56 +263,90 @@ def p_out_for_sequence(given_sequence, seq, loss):
     # plt.plot(time[1:], gain_ar[1:])
     # plt.title('Gain against time')
     # plt.show()
-    # #print(P_o_ar.shape())
-    # plt.plot(time[1:], P_o_ar[1:])
+    # # #print(P_o_ar.shape())
+    # plt.plot(time[1:], [x * ppp * volume for x in P_o_ar[1:]])
     # plt.title('Power Out against time')
     # plt.show()
     return P_o_ar[1:], bit_index
 
 
-#P_out, f, t_step, bit_index = p_out_for_sequence(0, [])
+P_out, bit_index = p_out_for_sequence(0, [], 0)
+
+
+def power_chop(power, bit_index):
+    #like cut off how many samples?
+    #print(int(bit_index[0]), bit_index[int(len(bit_index)/100)])
+
+    print(len(bit_index))
+    for m in range(int(len(bit_index)) - 2):
+
+        power1 = (power[bit_index[m]: bit_index[(m + 1)]])
+
+        test = bit_index[(m + 2)]
+        power2 = (power[bit_index[(m + 1)]: bit_index[(m + 2)]])
+
+        p1_av = 0
+        p2_av = 0
+
+        for i in power1:
+            p1_av += i
+        p1_av /= len(power1)
+
+        for n in power2:
+            p2_av += n
+        p2_av /= len(power2)
+
+        print(p1_av, p2_av)
+
+#power_chop(P_out, bit_index)
 
 
 def bit_index_removal(ar):
     op = []
     for i in range(len(ar)):
-        if i%3 == 0:
+        if i % 3 == 0:
             op += [ar[i]]
 
     return op
 
 
-def eye_diagram_plot(P_out, bit_index, passno):
+def eye_diagram_plot(P_out, bit_index, passno, loss, type):
 
     bit_index = bit_index_removal(bit_index)
 
     plt.figure()
     for i in range(len(bit_index)-1):
-        plt.plot([x *ppp *volume for x in P_out[bit_index[i]:bit_index[i+1]]])
-        plt.title("Eye Diagram after {} passes".format(passno + 1))
-        plt.ylim(0, 2*10**-7)
+        plt.plot([x * ppp * volume for x in P_out[bit_index[i]:bit_index[i+1]]])
+        plt.title("Eye Diagram after {} passes with a loss of {}".format(passno + 1, int(loss)))
+        if type == 1:
+            plt.ylim(0, 2 * 10 ** (-7))
+        elif type == 0:
+            plt.ylim(0, 5 * 10 ** (-7))
 
 
-
-
-def loss_analysis():
+def loss_analysis(type):
     P_out, bit_index = p_out_for_sequence(0, [], 0)
-    eye_diagram_plot(P_out, bit_index, 0)
+    eye_diagram_plot(P_out, bit_index, 0, 0, type)
     #xmin, xmax, ymin, ymax = axis()
-    for i in np.logspace(2, 5.5, 4):
+    for i in np.logspace(4, 5.5, 4):
         P_out, bit_index = p_out_for_sequence(0, [], i)
-        eye_diagram_plot(P_out, bit_index, 0)
+        eye_diagram_plot(P_out, bit_index, 0, i, type)
 
 
-def pass_through_multiple():
-    P_out, bit_index = p_out_for_sequence(0, [], 0)
-    eye_diagram_plot(P_out, bit_index, 0)
+def pass_through_multiple(type, loss):
+    total = 5
+    print(1/(total + 1))
+    P_out, bit_index = p_out_for_sequence(0, [], loss)
+    eye_diagram_plot(P_out, bit_index, 0, loss, type)
 
-    for i in range(5):
-        P_out, bit_index = p_out_for_sequence(1, P_out, 0)
-        eye_diagram_plot(P_out, bit_index, i + 1)
+    for i in range(total):
+        print((i + 2)/(total + 1))
 
-#pass_through_multiple()
-loss_analysis()
+        P_out, bit_index = p_out_for_sequence(1, P_out, loss)
+        eye_diagram_plot(P_out, bit_index, i + 1, loss, type)
+
+loss = 0
+pass_through_multiple(0, loss)        #0 pass multi
+#loss_analysis(1)                #1 loss analysis
 
 plt.show()
